@@ -6,3 +6,35 @@ Methods for saving evaluations results:
 
 [[autodoc]] evaluate.save
 
+### Saving NumPy results
+
+Metric results can contain NumPy arrays and scalars, such as confusion matrices and per-class scores.
+[`evaluate.save`] converts NumPy arrays to lists and NumPy boolean, integer, and floating-point
+scalars to Python scalars before writing JSON. This also works inside nested dictionaries, lists,
+tuples, and object arrays whose elements are supported values.
+
+```py
+>>> import json
+>>> import numpy as np
+>>> import evaluate
+>>> results = {
+...     "accuracy": np.float32(0.75),
+...     "confusion_matrix": np.array([[2, 1], [0, 1]], dtype=np.int64),
+... }
+>>> path = evaluate.save("results/report.json", metrics=results)
+>>> with path.open() as f:
+...     report = json.load(f)
+>>> report["metrics"]
+{'accuracy': 0.75, 'confusion_matrix': [[2, 1], [0, 1]]}
+```
+
+Zero-dimensional arrays become scalar values; empty arrays become lists. JSON does not preserve
+NumPy dtypes or all array shape information (for example, empty dimensions). Floating-point
+conversion uses Python floats and can lose extended precision.
+
+Complex numbers, dates, timedeltas, byte strings, structured arrays, and arbitrary objects are
+unsupported and raise `TypeError`, including when nested in an object array. Dictionary keys
+continue to follow the standard Python JSON encoder's rules; NumPy key conversion is not added.
+The existing handling of `NaN` and infinity is unchanged: they are written using Python's JSON
+extensions rather than strict JSON numbers.
+

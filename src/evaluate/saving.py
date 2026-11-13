@@ -5,6 +5,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
 from datasets.utils.filelock import FileLock
 
 from . import __version__
@@ -15,10 +16,16 @@ def save(path_or_file, **data):
     Saves results to a JSON file. Also saves system information such as current time, current commit
     hash if inside a repository, and Python system information.
 
+    NumPy arrays are saved as nested lists, and NumPy boolean, integer, and floating-point scalars
+    are converted to Python scalars, including inside dictionaries and lists. Array dtype information
+    is not preserved. Complex numbers, dates, timedeltas, and other unsupported values raise `TypeError`.
+
     Args:
         path_or_file (`str`):
             Path or file to store the file. If only a folder is provided
             the results file will be saved in the format `"result-%Y_%m_%d-%H_%M_%S.json"`.
+        **data:
+            Results and metadata to save. Values must be JSON serializable or supported NumPy values.
 
     Example:
         ```py
@@ -40,7 +47,7 @@ def save(path_or_file, **data):
 
     with FileLock(str(file_path) + ".lock"):
         with open(file_path, "w") as f:
-            json.dump(data, f)
+            json.dump(data, f, default=_json_default)
 
     # cleanup lock file
     try:
@@ -49,6 +56,20 @@ def save(path_or_file, **data):
         pass
 
     return file_path
+
+
+def _json_default(value):
+    """Convert NumPy values that are not handled by the standard JSON encoder."""
+    if isinstance(value, np.ndarray) and value.dtype.kind in "biufUO":
+        return value.tolist()
+    if isinstance(value, np.generic):
+        if value.dtype.kind == "b":
+            return bool(value)
+        if value.dtype.kind in "iu":
+            return int(value)
+        if value.dtype.kind == "f":
+            return float(value)
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 
 def _setup_path(path_or_file, current_time):
